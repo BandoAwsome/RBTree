@@ -15,4 +15,8 @@ public enum NodeColor {
     NodeColor(String str) {
         this.str = str;
     }
+
+    public String getStr() {
+        return str;
+    }
 }

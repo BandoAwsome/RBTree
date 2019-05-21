@@ -1,6 +1,4 @@
-import sun.reflect.generics.tree.Tree;
-
-import java.io.Reader;
+import java.util.InputMismatchException;
 import java.util.Scanner;
 
 /**
@@ -20,9 +18,12 @@ public class Main {
                 TreeNode newNode = new TreeNode();
                 newNode.setData(data);
                 // 插入树中
-                tree.insert(newNode);
+                tree.add(newNode);
             } catch (Exception e) {
                 // 输入非数字，退出
+                if (!(e instanceof InputMismatchException)) {
+                    e.printStackTrace();
+                }
                 break;
             }
         }
