@@ -1,3 +1,5 @@
+import sun.reflect.generics.tree.Tree;
+
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingDeque;
 
@@ -25,10 +27,69 @@ public class RBTree {
      * @date: 2019/5/20 18:55
      */
     public void add(TreeNode node) {
+        if (node == null) {
+            // 容错
+            return;
+        }
         // 1.形成二叉排序树
         insertInTree(node);
         // 2.着色与旋转
         colorAndRotateAfterInsert(node);
+    }
+
+    /**
+     * 删除某个节点
+     * @param node
+     * @return: void
+     * @date: 2019/5/21 16:02
+     */
+    public void delete(TreeNode node) {
+        // 1.从排序树中删除
+        Tuple<TreeNode, TreeNode> tuple = deleteInSortTree(node);
+        if (tuple == null) {
+            return;
+        }
+        TreeNode deleteNode = tuple.left;
+        TreeNode newNode = tuple.right;
+        if (newNode == null) {
+            // 替换节点是叶子
+            return;
+        }
+        // 2.着色与旋转
+        if (deleteNode.getColor() == NodeColor.RED) {
+            // 前提1：被删除节点是红色，不用继续处理
+            return;
+        }
+        if (newNode.getColor() == NodeColor.RED) {
+            // 前提2：替换节点是红色，被删节点也是黑色，变色成黑色即可
+            newNode.setColor(NodeColor.BLACK);
+            return;
+        }
+        colorAndRotateAfterDelete(newNode);
+    }
+
+    /**
+     * 检查节点是否在树内
+     * @param root
+     * @param node
+     * @return: void
+     * @date: 2019/5/21 16:10
+     */
+    public boolean checkNodeInTree(TreeNode root, TreeNode node) {
+        if (root == null || node == null) {
+            return false;
+        }
+        if (root == node) {
+            // 找到
+            return true;
+        }
+        if (root.getData() >= node.getData()) {
+            // 找左子树
+            return checkNodeInTree(root.getLeftChild(), node);
+        } else {
+            // 找右子树
+            return checkNodeInTree(root.getRightChild(), node);
+        }
     }
 
     /**
@@ -153,6 +214,111 @@ public class RBTree {
                 newNode.getFather().setColor(NodeColor.BLACK);
                 // 原来的祖父变成红色
                 newNode.getBrother().setColor(NodeColor.RED);
+            }
+        }
+    }
+
+    /**
+     * 从排序树中删除节点，被删节点至多只有一个儿子
+     * @param node
+     * @return: Tuple<TreeNode,TreeNode>  左元素 - 真正被删除的节点；右元素 - 替代的节点
+     * @date: 2019/5/21 16:31
+     */
+    public Tuple<TreeNode, TreeNode> deleteInSortTree(TreeNode node) {
+        if (!checkNodeInTree(root, node)) {
+            // 节点不在树内
+            return null;
+        }
+        if (node.getRightChild() != null && node.getLeftChild() != null) {
+            // 左右孩子都存在，将删除点改为左子树的最右孩子, 原本删除点Data被替换
+            // 注意，这里暗含一个逻辑：最右子树肯定不会有两个儿子
+            TreeNode biggestChild = node.getLeftChild();
+            while (biggestChild.getRightChild() != null) {
+                biggestChild = biggestChild.getRightChild();
+            }
+            node.setData(biggestChild.getData());
+            node = biggestChild;
+        }
+        TreeNode child = node.getLeftChild() != null ? node.getLeftChild() : node.getRightChild();
+        if (node == node.getFather().getLeftChild()) {
+            // 是父亲的左孩子
+            node.getFather().setLeftChild(child);
+            if (child != null) {
+                child.setFather(node.getFather());
+            }
+        } else {
+            // 是父亲的右孩子
+            node.getFather().setRightChild(child);
+            if (child != null) {
+                child.setFather(node.getFather());
+            }
+        }
+        return new Tuple<>(node, child);
+    }
+
+    /**
+     * 删除节点后着色与旋转
+     * @param newNode 被替换成的节点
+     * @return: void
+     * @date: 2019/5/21 17:28
+     */
+    public void colorAndRotateAfterDelete(TreeNode newNode) {
+        // 以下情况前提：替换节点和被删节点都是黑色
+        if (newNode.getFather() == null) {
+            // case1: 替换节点是根
+            return;
+        }
+        if (newNode.getBrother().getColor() == NodeColor.RED) {
+            // case2：兄弟节点是红色，对父亲左旋或右旋
+            if (newNode == newNode.getFather().getLeftChild()) {
+                newNode.getFather().leftRotate();
+            } else {
+                newNode.getFather().rightRotate();
+            }
+            newNode.getFather().setColor(NodeColor.RED);
+            // 将原来的兄弟，现在的祖父置为黑色
+            newNode.getGrandFather().setColor(NodeColor.BLACK);
+        }
+        if (newNode.getFather().getColor() == NodeColor.BLACK
+                && newNode.getBrother().getColor() == NodeColor.BLACK
+                && (newNode.getBrother().getRightChild() == null || newNode.getBrother().getRightChild().getColor() == NodeColor.BLACK)
+                && (newNode.getBrother().getLeftChild() == null || newNode.getBrother().getLeftChild().getColor() == NodeColor.BLACK)) {
+            // case3：父亲，兄弟，兄弟的儿子都是黑色
+            newNode.getBrother().setColor(NodeColor.RED);
+            colorAndRotateAfterDelete(newNode.getFather());
+        } else if (newNode.getFather().getColor() == NodeColor.RED
+                && newNode.getBrother().getColor() == NodeColor.BLACK
+                && (newNode.getBrother().getRightChild() == null || newNode.getBrother().getRightChild().getColor() == NodeColor.BLACK)
+                && (newNode.getBrother().getLeftChild() == null || newNode.getBrother().getLeftChild().getColor() == NodeColor.BLACK)) {
+            // case4：父亲是红色，兄弟和兄弟的儿子都是黑色
+            newNode.getBrother().setColor(NodeColor.RED);
+            newNode.getFather().setColor(NodeColor.BLACK);
+        } else if (newNode.getBrother().getColor() == NodeColor.BLACK) {
+            // case5：兄弟是黑色，一个儿子是红色一个儿子是黑色
+            if ((newNode.getBrother().getRightChild() == null || newNode.getBrother().getRightChild().getColor() == NodeColor.BLACK)
+                    && (newNode.getBrother().getLeftChild() != null && newNode.getBrother().getLeftChild().getColor() == NodeColor.RED)
+                        && newNode == newNode.getFather().getLeftChild()) {
+                // 自己是左儿子, 兄弟有红左儿子，黑右儿子
+                newNode.getBrother().setColor(NodeColor.RED);
+                newNode.getBrother().getLeftChild().setColor(NodeColor.BLACK);
+                newNode.getBrother().rightRotate();
+            } else if ((newNode.getBrother().getRightChild() == null || newNode.getBrother().getRightChild().getColor() == NodeColor.RED)
+                    && (newNode.getBrother().getLeftChild() != null && newNode.getBrother().getLeftChild().getColor() == NodeColor.BLACK)
+                    && newNode == newNode.getFather().getRightChild()){
+                // 自己是右儿子，兄弟有黑左儿子，红右儿子
+                newNode.getBrother().setColor(NodeColor.RED);
+                newNode.getBrother().getRightChild().setColor(NodeColor.BLACK);
+                newNode.getBrother().leftRotate();
+            }
+            // case6：兄弟是黑色，兄弟右儿子是红色，自己是父亲的左儿子（反之也有）
+            newNode.getBrother().setColor(newNode.getFather().getColor());
+            newNode.getFather().setColor(NodeColor.BLACK);
+            if (newNode == newNode.getFather().getLeftChild()) {
+                newNode.getBrother().getRightChild().setColor(NodeColor.BLACK);
+                newNode.getFather().leftRotate();
+            } else {
+                newNode.getBrother().getLeftChild().setColor(NodeColor.BLACK);
+                newNode.getFather().rightRotate();
             }
         }
     }
